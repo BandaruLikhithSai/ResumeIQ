@@ -28,7 +28,7 @@ services:
           property: connectionString
 
       - key: FRONTEND_URL
-        value: https://resumeiq-web.onrender.com
+        value: https://resumeiq-web-z6k8.onrender.com
 
       - key: UPLOAD_FOLDER
         value: uploads
@@ -81,7 +81,7 @@ services:
 
     envVars:
       - key: VITE_API_URL
-        value: https://resumeiq-api.onrender.com
+        value: https://resumeiq-api-8wvo.onrender.com
 
 # ── PostgreSQL Database ────────────────────────────────────────
 databases:
