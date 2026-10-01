@@ -1,0 +1,12 @@
+# Normalise line endings to LF in the repo on all platforms
+* text=auto eol=lf
+
+# Binary files — never convert
+*.pdf  binary
+*.docx binary
+*.png  binary
+*.jpg  binary
+*.jpeg binary
+*.ico  binary
+*.woff binary
+*.woff2 binary

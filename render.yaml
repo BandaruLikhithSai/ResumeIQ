@@ -1,0 +1,104 @@
+## render.yaml — Render Blueprint
+## Docs: https://render.com/docs/blueprint-spec
+##
+## Deploys:
+##   1. resumeiq-api    → Python web service (Flask + gunicorn)
+##   2. resumeiq-db     → PostgreSQL 16 managed database
+##   3. resumeiq-web    → Static site (React Vite build)
+##
+## One-click deploy from GitHub:
+##   render.com → New → Blueprint → point to this repo
+
+services:
+  # ── Backend API ────────────────────────────────────────────────────────────
+  - type: web
+    name: resumeiq-api
+    runtime: python
+    region: singapore          # change to oregon / frankfurt as needed
+    plan: free                 # upgrade to starter for always-on
+    rootDir: backend
+    buildCommand: pip install -r requirements.txt
+    startCommand: gunicorn wsgi:app --workers 2 --threads 2 --timeout 120 --bind 0.0.0.0:$PORT
+    healthCheckPath: /api/health
+
+    envVars:
+      - key: FLASK_ENV
+        value: production
+
+      - key: SECRET_KEY
+        generateValue: true        # Render auto-generates a secure random value
+
+      - key: JWT_SECRET_KEY
+        generateValue: true
+
+      # Render injects DATABASE_URL automatically when you attach a database
+      - key: DATABASE_URL
+        fromDatabase:
+          name: resumeiq-db
+          property: connectionString
+
+      # Set this AFTER deploying the frontend so you have its URL
+      # Format: https://resumeiq-web.onrender.com
+      # Comma-separate to allow localhost during dev too
+      - key: FRONTEND_URL
+        value: https://resumeiq-web.onrender.com
+
+      - key: UPLOAD_FOLDER
+        value: uploads
+
+      - key: MAX_CONTENT_LENGTH
+        value: "16777216"
+
+      # Matching weights (must sum to 1.0)
+      - key: WEIGHT_TFIDF
+        value: "0.25"
+      - key: WEIGHT_SEMANTIC
+        value: "0.30"
+      - key: WEIGHT_KG
+        value: "0.25"
+      - key: WEIGHT_EXPERIENCE
+        value: "0.20"
+
+      # Score thresholds
+      - key: SCORE_EXCELLENT
+        value: "85"
+      - key: SCORE_STRONG
+        value: "70"
+      - key: SCORE_MODERATE
+        value: "50"
+      - key: SCORE_WEAK
+        value: "30"
+
+  # ── PostgreSQL Database ────────────────────────────────────────────────────
+databases:
+  - name: resumeiq-db
+    databaseName: resumeiq
+    plan: free
+    region: singapore
+
+  # ── Frontend Static Site ───────────────────────────────────────────────────
+staticSites:
+  - type: web
+    name: resumeiq-web
+    runtime: static
+    rootDir: frontend
+    buildCommand: npm install && npm run build
+    staticPublishPath: dist
+    pullRequestPreviewsEnabled: true
+
+    headers:
+      - path: /*
+        name: Cache-Control
+        value: no-cache
+
+    routes:
+      # All routes fall back to index.html for React SPA routing
+      - type: rewrite
+        source: /*
+        destination: /index.html
+
+    envVars:
+      # The backend URL — replace with your actual Render API service URL
+      # after first deploy, e.g. https://resumeiq-api.onrender.com
+      - key: VITE_API_URL
+        value: https://resumeiq-api.onrender.com
