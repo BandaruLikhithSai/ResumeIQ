@@ -4,6 +4,7 @@ export default {
     "./index.html",
     "./src/**/*.{js,ts,jsx,tsx}",
   ],
+  darkMode: 'class',
   theme: {
     extend: {
       colors: {
@@ -18,6 +19,18 @@ export default {
           700: '#4338ca',
           800: '#3730a3',
           900: '#312e81',
+        },
+        // Dark mode surface palette
+        dark: {
+          bg:         '#0f1117',
+          surface:    '#161b27',
+          card:       '#1e2535',
+          border:     '#2a3348',
+          borderHover:'#3d4f6e',
+          text:       '#e2e8f0',
+          textSecond: '#94a3b8',
+          textMuted:  '#64748b',
+          accent:     '#818cf8',
         },
       },
       fontFamily: {

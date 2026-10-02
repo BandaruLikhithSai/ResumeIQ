@@ -9,9 +9,11 @@ import ScoreRing from '../../components/ui/ScoreRing'
 import SkillBadge from '../../components/ui/SkillBadge'
 import { scoreColor, capitalize } from '../../utils/helpers'
 import { RadarChart, Radar, PolarGrid, PolarAngleAxis, ResponsiveContainer, Tooltip } from 'recharts'
+import { useTheme } from '../../context/ThemeContext'
 
 export default function AnalysisResults() {
   const { id } = useParams()
+  const { isDark } = useTheme()
   const [analysis, setAnalysis] = useState(null)
   const [resume, setResume] = useState(null)
   const [job, setJob] = useState(null)
@@ -33,14 +35,16 @@ export default function AnalysisResults() {
   }, [id])
 
   if (loading) return <ResultsSkeleton />
-  if (!analysis) return <div className="text-center py-20 text-gray-400">Analysis not found</div>
+  if (!analysis) return (
+    <div className="text-center py-20 text-[var(--text-muted)]">Analysis not found</div>
+  )
 
   const { skill_matches = [], component_scores = {}, counts = {}, strengths = [], weaknesses = [] } = analysis
 
-  const fullyMatched    = skill_matches.filter(s => s.match_status === 'fully_matched')
-  const partialMatched  = skill_matches.filter(s => s.match_status === 'partially_matched')
-  const transferable    = skill_matches.filter(s => s.match_status === 'transferable')
-  const missing         = skill_matches.filter(s => s.match_status === 'missing')
+  const fullyMatched   = skill_matches.filter(s => s.match_status === 'fully_matched')
+  const partialMatched = skill_matches.filter(s => s.match_status === 'partially_matched')
+  const transferable   = skill_matches.filter(s => s.match_status === 'transferable')
+  const missing        = skill_matches.filter(s => s.match_status === 'missing')
 
   const radarData = [
     { subject: 'Skills',     value: component_scores.knowledge_graph || 0 },
@@ -51,13 +55,22 @@ export default function AnalysisResults() {
 
   const color = scoreColor(analysis.overall_score)
 
+  // Radar chart theme-aware colors
+  const radarStroke      = isDark ? '#818cf8' : '#6366f1'
+  const radarFill        = isDark ? '#818cf8' : '#6366f1'
+  const radarGridStroke  = isDark ? '#2a3348' : '#e5e7eb'
+  const radarTickColor   = isDark ? '#94a3b8' : '#6b7280'
+  const tooltipBg        = isDark ? '#1e2535' : '#ffffff'
+  const tooltipBorder    = isDark ? '#2a3348' : '#e5e7eb'
+  const tooltipText      = isDark ? '#e2e8f0' : '#111827'
+
   return (
     <div className="max-w-5xl mx-auto space-y-6">
       {/* Top bar */}
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 className="page-title">Match Results</h1>
-          <p className="text-gray-500 text-sm mt-1">
+          <p className="text-[var(--text-secondary)] text-sm mt-1">
             {resume?.candidate_name || 'Candidate'} → {job?.title || 'Position'}
           </p>
         </div>
@@ -84,22 +97,24 @@ export default function AnalysisResults() {
 
           {/* Component scores */}
           <div className="flex-1 w-full space-y-3">
-            <h3 className="font-semibold text-gray-700 text-sm mb-4">Score Breakdown</h3>
+            <h3 className="font-semibold text-[var(--text-secondary)] text-sm mb-4">Score Breakdown</h3>
             {[
-              { label: 'TF-IDF Similarity',    value: component_scores.tfidf,          color: 'bg-indigo-500',  weight: analysis.weights?.tfidf },
-              { label: 'Semantic Match',        value: component_scores.semantic,        color: 'bg-blue-500',    weight: analysis.weights?.semantic },
-              { label: 'Knowledge Graph',       value: component_scores.knowledge_graph, color: 'bg-purple-500',  weight: analysis.weights?.knowledge_graph },
-              { label: 'Experience Relevance',  value: component_scores.experience,      color: 'bg-teal-500',    weight: analysis.weights?.experience },
+              { label: 'TF-IDF Similarity',   value: component_scores.tfidf,          color: 'bg-indigo-500 dark:bg-indigo-400', weight: analysis.weights?.tfidf },
+              { label: 'Semantic Match',       value: component_scores.semantic,        color: 'bg-blue-500 dark:bg-blue-400',    weight: analysis.weights?.semantic },
+              { label: 'Knowledge Graph',      value: component_scores.knowledge_graph, color: 'bg-purple-500 dark:bg-purple-400',weight: analysis.weights?.knowledge_graph },
+              { label: 'Experience Relevance', value: component_scores.experience,      color: 'bg-teal-500 dark:bg-teal-400',    weight: analysis.weights?.experience },
             ].map(({ label, value, color: barColor, weight }) => (
               <div key={label}>
                 <div className="flex items-center justify-between text-sm mb-1">
-                  <span className="text-gray-600 font-medium">{label}</span>
+                  <span className="text-[var(--text-secondary)] font-medium">{label}</span>
                   <div className="flex items-center gap-2">
-                    <span className="text-xs text-gray-400">weight {Math.round((weight || 0) * 100)}%</span>
-                    <span className="font-bold text-gray-900 w-10 text-right">{Math.round(value || 0)}%</span>
+                    <span className="text-xs text-[var(--text-muted)]">weight {Math.round((weight || 0) * 100)}%</span>
+                    <span className="font-bold text-[var(--text-primary)] w-10 text-right">
+                      {Math.round(value || 0)}%
+                    </span>
                   </div>
                 </div>
-                <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
+                <div className="h-2 bg-[var(--surface-secondary)] rounded-full overflow-hidden">
                   <div className={`h-full ${barColor} rounded-full transition-all`}
                     style={{ width: `${value || 0}%` }} />
                 </div>
@@ -111,10 +126,27 @@ export default function AnalysisResults() {
           <div className="w-48 h-48 shrink-0 hidden lg:block">
             <ResponsiveContainer width="100%" height="100%">
               <RadarChart data={radarData}>
-                <PolarGrid />
-                <PolarAngleAxis dataKey="subject" tick={{ fontSize: 11 }} />
-                <Radar dataKey="value" stroke="#6366f1" fill="#6366f1" fillOpacity={0.2} />
-                <Tooltip formatter={v => `${Math.round(v)}%`} />
+                <PolarGrid stroke={radarGridStroke} />
+                <PolarAngleAxis
+                  dataKey="subject"
+                  tick={{ fontSize: 11, fill: radarTickColor }}
+                />
+                <Radar
+                  dataKey="value"
+                  stroke={radarStroke}
+                  fill={radarFill}
+                  fillOpacity={isDark ? 0.15 : 0.2}
+                />
+                <Tooltip
+                  formatter={v => `${Math.round(v)}%`}
+                  contentStyle={{
+                    background: tooltipBg,
+                    border: `1px solid ${tooltipBorder}`,
+                    borderRadius: '0.5rem',
+                    color: tooltipText,
+                    fontSize: '0.75rem',
+                  }}
+                />
               </RadarChart>
             </ResponsiveContainer>
           </div>
@@ -125,37 +157,61 @@ export default function AnalysisResults() {
       <div className="card p-6">
         <h3 className="section-title mb-4">Requirement Coverage</h3>
         <div className="flex h-4 rounded-full overflow-hidden gap-0.5 mb-3">
-          {counts.fully_matched > 0    && <div className="bg-green-500 transition-all"  style={{ flex: counts.fully_matched }} />}
-          {counts.partially_matched > 0 && <div className="bg-blue-400 transition-all"   style={{ flex: counts.partially_matched }} />}
-          {counts.transferable > 0     && <div className="bg-purple-400 transition-all" style={{ flex: counts.transferable }} />}
-          {counts.missing > 0          && <div className="bg-red-300 transition-all"    style={{ flex: counts.missing }} />}
+          {counts.fully_matched > 0    && <div className="bg-green-500 dark:bg-green-600 transition-all" style={{ flex: counts.fully_matched }} />}
+          {counts.partially_matched > 0 && <div className="bg-blue-400 dark:bg-blue-500 transition-all"  style={{ flex: counts.partially_matched }} />}
+          {counts.transferable > 0     && <div className="bg-purple-400 dark:bg-purple-500 transition-all" style={{ flex: counts.transferable }} />}
+          {counts.missing > 0          && <div className="bg-red-300 dark:bg-red-500 transition-all"     style={{ flex: counts.missing }} />}
         </div>
         <div className="flex flex-wrap gap-4 text-sm">
           {[
-            { label: 'Fully Matched',   count: counts.fully_matched,    color: 'bg-green-500' },
-            { label: 'Partial Match',   count: counts.partially_matched, color: 'bg-blue-400' },
-            { label: 'Transferable',    count: counts.transferable,     color: 'bg-purple-400' },
-            { label: 'Missing',         count: counts.missing,          color: 'bg-red-300' },
+            { label: 'Fully Matched',  count: counts.fully_matched,    color: 'bg-green-500 dark:bg-green-600' },
+            { label: 'Partial Match',  count: counts.partially_matched, color: 'bg-blue-400 dark:bg-blue-500' },
+            { label: 'Transferable',   count: counts.transferable,     color: 'bg-purple-400 dark:bg-purple-500' },
+            { label: 'Missing',        count: counts.missing,          color: 'bg-red-300 dark:bg-red-500' },
           ].map(({ label, count, color: dotColor }) => (
-            <div key={label} className="flex items-center gap-2 text-gray-600">
+            <div key={label} className="flex items-center gap-2 text-[var(--text-secondary)]">
               <div className={`w-2.5 h-2.5 rounded-full ${dotColor}`} />
               <span>{count} {label}</span>
             </div>
           ))}
-          <span className="text-gray-400">/ {counts.total} total</span>
+          <span className="text-[var(--text-muted)]">/ {counts.total} total</span>
         </div>
       </div>
 
       {/* Skill matches grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <SkillGroup title="Fully Matched" icon={<CheckCircle size={16} className="text-green-600" />}
-          color="border-green-200 bg-green-50" skills={fullyMatched} status="fully_matched" expandedSkill={expandedSkill} setExpandedSkill={setExpandedSkill} />
-        <SkillGroup title="Partially Matched" icon={<MinusCircle size={16} className="text-blue-600" />}
-          color="border-blue-200 bg-blue-50" skills={partialMatched} status="partially_matched" expandedSkill={expandedSkill} setExpandedSkill={setExpandedSkill} />
-        <SkillGroup title="Transferable Skills" icon={<ArrowUpRight size={16} className="text-purple-600" />}
-          color="border-purple-200 bg-purple-50" skills={transferable} status="transferable" expandedSkill={expandedSkill} setExpandedSkill={setExpandedSkill} />
-        <SkillGroup title="Missing Skills" icon={<XCircle size={16} className="text-red-600" />}
-          color="border-red-200 bg-red-50" skills={missing} status="missing" expandedSkill={expandedSkill} setExpandedSkill={setExpandedSkill} />
+        <SkillGroup
+          title="Fully Matched"
+          icon={<CheckCircle size={16} className="text-green-600 dark:text-green-400" />}
+          color="border-green-200 dark:border-green-800 bg-green-50 dark:bg-green-900/20"
+          itemBg="bg-white/80 dark:bg-green-900/10"
+          skills={fullyMatched} status="fully_matched"
+          expandedSkill={expandedSkill} setExpandedSkill={setExpandedSkill}
+        />
+        <SkillGroup
+          title="Partially Matched"
+          icon={<MinusCircle size={16} className="text-blue-600 dark:text-blue-400" />}
+          color="border-blue-200 dark:border-blue-800 bg-blue-50 dark:bg-blue-900/20"
+          itemBg="bg-white/80 dark:bg-blue-900/10"
+          skills={partialMatched} status="partially_matched"
+          expandedSkill={expandedSkill} setExpandedSkill={setExpandedSkill}
+        />
+        <SkillGroup
+          title="Transferable Skills"
+          icon={<ArrowUpRight size={16} className="text-purple-600 dark:text-purple-400" />}
+          color="border-purple-200 dark:border-purple-800 bg-purple-50 dark:bg-purple-900/20"
+          itemBg="bg-white/80 dark:bg-purple-900/10"
+          skills={transferable} status="transferable"
+          expandedSkill={expandedSkill} setExpandedSkill={setExpandedSkill}
+        />
+        <SkillGroup
+          title="Missing Skills"
+          icon={<XCircle size={16} className="text-red-600 dark:text-red-400" />}
+          color="border-red-200 dark:border-red-800 bg-red-50 dark:bg-red-900/20"
+          itemBg="bg-white/80 dark:bg-red-900/10"
+          skills={missing} status="missing"
+          expandedSkill={expandedSkill} setExpandedSkill={setExpandedSkill}
+        />
       </div>
 
       {/* Explanation */}
@@ -163,37 +219,35 @@ export default function AnalysisResults() {
         <h3 className="section-title">Why this score?</h3>
 
         {analysis.summary && (
-          <div className="p-4 bg-gray-50 rounded-xl text-sm text-gray-700 leading-relaxed border border-gray-200">
+          <div className="p-4 bg-[var(--surface-secondary)] rounded-xl text-sm text-[var(--text-secondary)] leading-relaxed border border-[var(--border)]">
             {analysis.summary}
           </div>
         )}
 
         <div className="grid md:grid-cols-2 gap-4">
-          {/* Strengths */}
           {strengths.length > 0 && (
             <div>
-              <h4 className="text-sm font-semibold text-green-700 mb-3 flex items-center gap-2">
+              <h4 className="text-sm font-semibold text-green-700 dark:text-green-400 mb-3 flex items-center gap-2">
                 <CheckCircle size={15} /> What's working in your favour
               </h4>
               <ul className="space-y-2">
                 {strengths.map((s, i) => (
-                  <li key={i} className="flex items-start gap-2 text-sm text-gray-700">
-                    <span className="text-green-500 mt-0.5 shrink-0">✓</span> {s}
+                  <li key={i} className="flex items-start gap-2 text-sm text-[var(--text-secondary)]">
+                    <span className="text-green-500 dark:text-green-400 mt-0.5 shrink-0">✓</span> {s}
                   </li>
                 ))}
               </ul>
             </div>
           )}
 
-          {/* Weaknesses */}
           {weaknesses.length > 0 && (
             <div>
-              <h4 className="text-sm font-semibold text-red-700 mb-3 flex items-center gap-2">
+              <h4 className="text-sm font-semibold text-red-700 dark:text-red-400 mb-3 flex items-center gap-2">
                 <XCircle size={15} /> Areas reducing your score
               </h4>
               <ul className="space-y-2">
                 {weaknesses.map((w, i) => (
-                  <li key={i} className="flex items-start gap-2 text-sm text-gray-700">
+                  <li key={i} className="flex items-start gap-2 text-sm text-[var(--text-secondary)]">
                     <span className="text-red-400 mt-0.5 shrink-0">✕</span> {w}
                   </li>
                 ))}
@@ -206,15 +260,19 @@ export default function AnalysisResults() {
       {/* Experience & Education */}
       {analysis.experience_match && (
         <div className="card p-6">
-          <h3 className="section-title mb-4">Experience & Education Match</h3>
+          <h3 className="section-title mb-4">Experience &amp; Education Match</h3>
           <div className="grid md:grid-cols-3 gap-4">
             <StatBox label="Required Experience" value={`${analysis.experience_match.required_years || 0}+ yrs`} />
             <StatBox label="Detected Experience" value={`${analysis.experience_match.candidate_years || 0} yrs`} />
-            <StatBox label="Education" value={
-              analysis.education_match?.matched
-                ? `✓ ${capitalize(analysis.education_match?.candidate_edu || '')}`
-                : `✕ ${capitalize(analysis.education_match?.required_edu || '')}`
-            } highlight={analysis.education_match?.matched ? 'green' : 'red'} />
+            <StatBox
+              label="Education"
+              value={
+                analysis.education_match?.matched
+                  ? `✓ ${capitalize(analysis.education_match?.candidate_edu || '')}`
+                  : `✕ ${capitalize(analysis.education_match?.required_edu || '')}`
+              }
+              highlight={analysis.education_match?.matched ? 'green' : 'red'}
+            />
           </div>
         </div>
       )}
@@ -235,36 +293,42 @@ export default function AnalysisResults() {
   )
 }
 
-function SkillGroup({ title, icon, color, skills, status, expandedSkill, setExpandedSkill }) {
+function SkillGroup({ title, icon, color, itemBg, skills, status, expandedSkill, setExpandedSkill }) {
   if (skills.length === 0) return null
   return (
     <div className={`rounded-xl border p-4 ${color}`}>
-      <div className="flex items-center gap-2 mb-3 font-semibold text-sm text-gray-800">
-        {icon} {title} <span className="ml-auto bg-white/70 px-2 py-0.5 rounded-full text-xs">{skills.length}</span>
+      <div className="flex items-center gap-2 mb-3 font-semibold text-sm text-[var(--text-primary)]">
+        {icon} {title}
+        <span className="ml-auto bg-[var(--card)] opacity-80 px-2 py-0.5 rounded-full text-xs text-[var(--text-secondary)]">
+          {skills.length}
+        </span>
       </div>
       <div className="space-y-2">
         {skills.map(sm => (
-          <div key={sm.job_skill} className="bg-white/80 rounded-lg overflow-hidden">
+          <div key={sm.job_skill} className={`${itemBg} rounded-lg overflow-hidden border border-[var(--border)] border-opacity-50`}>
             <button
               onClick={() => setExpandedSkill(expandedSkill === sm.job_skill ? null : sm.job_skill)}
-              className="w-full flex items-center justify-between px-3 py-2 text-sm hover:bg-white/50 transition-colors">
+              className="w-full flex items-center justify-between px-3 py-2 text-sm hover:bg-white/20 dark:hover:bg-white/5 transition-colors"
+            >
               <div className="flex items-center gap-2 flex-wrap">
                 <SkillBadge skill={sm.job_skill} status={status} size="sm" />
                 {sm.transfer_path && sm.transfer_path !== sm.job_skill && (
-                  <span className="text-xs text-gray-400">via {sm.transfer_path}</span>
+                  <span className="text-xs text-[var(--text-muted)]">via {sm.transfer_path}</span>
                 )}
               </div>
               <div className="flex items-center gap-2 shrink-0 ml-2">
-                <span className="text-xs text-gray-400">{Math.round((sm.match_score || 0) * 100)}%</span>
-                {expandedSkill === sm.job_skill ? <ChevronUp size={13} /> : <ChevronDown size={13} />}
+                <span className="text-xs text-[var(--text-muted)]">{Math.round((sm.match_score || 0) * 100)}%</span>
+                {expandedSkill === sm.job_skill
+                  ? <ChevronUp size={13} className="text-[var(--text-muted)]" />
+                  : <ChevronDown size={13} className="text-[var(--text-muted)]" />}
               </div>
             </button>
             {expandedSkill === sm.job_skill && sm.evidence?.length > 0 && (
-              <div className="px-3 pb-3 space-y-1 border-t border-gray-100 pt-2">
-                <p className="text-xs font-semibold text-gray-500 mb-1">Evidence</p>
+              <div className="px-3 pb-3 space-y-1 border-t border-[var(--border)] pt-2">
+                <p className="text-xs font-semibold text-[var(--text-muted)] mb-1">Evidence</p>
                 {sm.evidence.map((ev, i) => (
-                  <div key={i} className="flex items-start gap-2 text-xs text-gray-600">
-                    <Info size={11} className="mt-0.5 shrink-0 text-gray-400" />
+                  <div key={i} className="flex items-start gap-2 text-xs text-[var(--text-secondary)]">
+                    <Info size={11} className="mt-0.5 shrink-0 text-[var(--text-muted)]" />
                     <span>{ev.text}</span>
                   </div>
                 ))}
@@ -278,10 +342,14 @@ function SkillGroup({ title, icon, color, skills, status, expandedSkill, setExpa
 }
 
 function StatBox({ label, value, highlight }) {
-  const color = highlight === 'green' ? 'text-green-600' : highlight === 'red' ? 'text-red-500' : 'text-gray-900'
+  const color = highlight === 'green'
+    ? 'text-green-600 dark:text-green-400'
+    : highlight === 'red'
+      ? 'text-red-500 dark:text-red-400'
+      : 'text-[var(--text-primary)]'
   return (
-    <div className="p-4 bg-gray-50 rounded-xl">
-      <div className="text-xs text-gray-500 mb-1">{label}</div>
+    <div className="p-4 bg-[var(--surface-secondary)] rounded-xl border border-[var(--border)]">
+      <div className="text-xs text-[var(--text-muted)] mb-1">{label}</div>
       <div className={`font-bold text-lg ${color}`}>{value}</div>
     </div>
   )

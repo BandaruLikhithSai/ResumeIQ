@@ -30,10 +30,15 @@ export default function WhatIfPage() {
       .finally(() => setLoading(false))
   }, [id])
 
-  if (loading) return <div className="space-y-4">{[...Array(3)].map((_, i) => <div key={i} className="h-32 skeleton rounded-xl" />)}</div>
-  if (!analysis) return <div className="text-gray-400 text-center py-20">Not found</div>
+  if (loading) return (
+    <div className="space-y-4">
+      {[...Array(3)].map((_, i) => <div key={i} className="h-32 skeleton rounded-xl" />)}
+    </div>
+  )
+  if (!analysis) return (
+    <div className="text-[var(--text-muted)] text-center py-20">Not found</div>
+  )
 
-  // Skills to suggest: gaps
   const missingSkills = (analysis.skill_matches || [])
     .filter(sm => sm.match_status === 'missing' || sm.match_status === 'partially_matched')
     .map(sm => sm.job_skill)
@@ -70,19 +75,24 @@ export default function WhatIfPage() {
     <div className="max-w-4xl mx-auto space-y-6">
       {/* Header */}
       <div className="flex items-center gap-4">
-        <Link to={`/analysis/${id}`} className="btn-ghost text-sm px-2"><ArrowLeft size={16} /></Link>
+        <Link to={`/analysis/${id}`} className="btn-ghost text-sm px-2">
+          <ArrowLeft size={16} />
+        </Link>
         <div>
           <h1 className="page-title flex items-center gap-2">
-            <TrendingUp size={22} className="text-primary-600" /> What-If Simulator
+            <TrendingUp size={22} className="text-[var(--accent)]" /> What-If Simulator
           </h1>
-          <p className="text-sm text-gray-500 mt-1">
+          <p className="text-sm text-[var(--text-secondary)] mt-1">
             Select skills to add and see your projected match improvement
           </p>
         </div>
       </div>
 
       {/* Disclaimer */}
-      <div className="flex items-start gap-2 p-3 bg-amber-50 border border-amber-200 rounded-lg text-sm text-amber-700">
+      <div className="flex items-start gap-2 p-3
+                      bg-amber-50 dark:bg-amber-900/20
+                      border border-amber-200 dark:border-amber-800
+                      rounded-lg text-sm text-amber-700 dark:text-amber-400">
         <Info size={15} className="mt-0.5 shrink-0" />
         Simulated scores are estimates using the same matching algorithm — not guarantees of real-world outcomes.
       </div>
@@ -92,20 +102,20 @@ export default function WhatIfPage() {
         <h3 className="section-title mb-6">Score Comparison</h3>
         <div className="flex items-center justify-center gap-8 md:gap-16">
           <div className="text-center">
-            <div className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-2">Current Score</div>
+            <div className="text-xs font-semibold text-[var(--text-muted)] uppercase tracking-wide mb-2">Current Score</div>
             <ScoreRing score={originalScore} color={scoreColor(originalScore)} size={130} label="Current" />
           </div>
 
           <div className="text-center">
-            <div className={`text-3xl font-black ${delta > 0 ? 'text-green-600' : 'text-gray-400'}`}>
+            <div className={`text-3xl font-black ${delta > 0 ? 'text-green-600 dark:text-green-400' : 'text-[var(--text-muted)]'}`}>
               {delta > 0 ? `+${delta.toFixed(1)}` : '—'}
             </div>
-            <div className="text-xs text-gray-400 mt-1">points</div>
-            <ArrowRight size={24} className="mx-auto mt-2 text-gray-300" />
+            <div className="text-xs text-[var(--text-muted)] mt-1">points</div>
+            <ArrowRight size={24} className="mx-auto mt-2 text-[var(--border-hover)]" />
           </div>
 
           <div className="text-center">
-            <div className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-2">Simulated Score</div>
+            <div className="text-xs font-semibold text-[var(--text-muted)] uppercase tracking-wide mb-2">Simulated Score</div>
             <ScoreRing score={simScore} color={scoreColor(simScore)} size={130} label={simResult ? 'Simulated' : 'Projected'} />
           </div>
         </div>
@@ -117,18 +127,21 @@ export default function WhatIfPage() {
 
         {missingSkills.length > 0 && (
           <div>
-            <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Missing / Partial Skills</p>
+            <p className="text-xs font-semibold text-[var(--text-muted)] uppercase tracking-wide mb-2">
+              Missing / Partial Skills
+            </p>
             <div className="flex flex-wrap gap-2">
               {missingSkills.map(skill => (
-                <button key={skill} onClick={() => toggle(skill)}
+                <button
+                  key={skill}
+                  onClick={() => toggle(skill)}
                   className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-medium border-2 transition-all ${
                     selectedSkills.includes(skill)
-                      ? 'bg-primary-600 text-white border-primary-600'
-                      : 'bg-white text-gray-600 border-gray-200 hover:border-primary-400'
-                  }`}>
-                  {selectedSkills.includes(skill)
-                    ? <CheckCircle size={13} />
-                    : <Plus size={13} />}
+                      ? 'bg-[var(--accent)] text-white border-[var(--accent)]'
+                      : 'bg-[var(--card)] text-[var(--text-secondary)] border-[var(--border)] hover:border-[var(--accent)]'
+                  }`}
+                >
+                  {selectedSkills.includes(skill) ? <CheckCircle size={13} /> : <Plus size={13} />}
                   {capitalize(skill)}
                 </button>
               ))}
@@ -138,15 +151,20 @@ export default function WhatIfPage() {
 
         {partialSkills.length > 0 && (
           <div>
-            <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Transferable → Direct Skills</p>
+            <p className="text-xs font-semibold text-[var(--text-muted)] uppercase tracking-wide mb-2">
+              Transferable → Direct Skills
+            </p>
             <div className="flex flex-wrap gap-2">
               {partialSkills.map(skill => (
-                <button key={skill} onClick={() => toggle(skill)}
+                <button
+                  key={skill}
+                  onClick={() => toggle(skill)}
                   className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-medium border-2 transition-all ${
                     selectedSkills.includes(skill)
-                      ? 'bg-purple-600 text-white border-purple-600'
-                      : 'bg-white text-gray-600 border-gray-200 hover:border-purple-400'
-                  }`}>
+                      ? 'bg-purple-600 dark:bg-purple-700 text-white border-purple-600 dark:border-purple-700'
+                      : 'bg-[var(--card)] text-[var(--text-secondary)] border-[var(--border)] hover:border-purple-400 dark:hover:border-purple-600'
+                  }`}
+                >
                   {selectedSkills.includes(skill) ? <CheckCircle size={13} /> : <Plus size={13} />}
                   {capitalize(skill)}
                 </button>
@@ -157,19 +175,27 @@ export default function WhatIfPage() {
 
         {/* Selected skills summary */}
         {selectedSkills.length > 0 && (
-          <div className="p-3 bg-primary-50 rounded-lg flex items-center gap-3 flex-wrap">
-            <span className="text-sm font-medium text-primary-700">Selected:</span>
+          <div className="p-3 bg-[var(--accent-subtle)] border border-[var(--border)] rounded-lg flex items-center gap-3 flex-wrap">
+            <span className="text-sm font-medium text-[var(--accent)]">Selected:</span>
             {selectedSkills.map(s => (
-              <span key={s} className="inline-flex items-center gap-1 bg-white text-primary-700 border border-primary-200 text-xs px-2 py-1 rounded-full">
+              <span key={s} className="inline-flex items-center gap-1 bg-[var(--card)] text-[var(--accent)] border border-[var(--border)] text-xs px-2 py-1 rounded-full">
                 {capitalize(s)}
-                <button onClick={() => toggle(s)} className="hover:text-red-500"><X size={11} /></button>
+                <button
+                  onClick={() => toggle(s)}
+                  className="hover:text-red-500 dark:hover:text-red-400 transition-colors"
+                >
+                  <X size={11} />
+                </button>
               </span>
             ))}
           </div>
         )}
 
-        <button onClick={runSimulation} disabled={simulating || selectedSkills.length === 0}
-          className="btn-primary w-full justify-center py-2.5">
+        <button
+          onClick={runSimulation}
+          disabled={simulating || selectedSkills.length === 0}
+          className="btn-primary w-full justify-center py-2.5"
+        >
           {simulating
             ? <><Loader2 size={16} className="animate-spin" /> Simulating…</>
             : <><Play size={16} /> Simulate Improvement</>}
@@ -180,13 +206,15 @@ export default function WhatIfPage() {
       {simResult?.changes?.length > 0 && (
         <div className="card p-6">
           <h3 className="section-title mb-4">Requirement Changes</h3>
-          <div className="divide-y divide-gray-100">
+          <div className="divide-y divide-[var(--border)]">
             {simResult.changes.map((change, i) => (
               <div key={i} className="py-3 flex items-center gap-4 text-sm">
-                <span className="font-medium text-gray-900 capitalize flex-1">{change.skill.replace(/_/g, ' ')}</span>
+                <span className="font-medium text-[var(--text-primary)] capitalize flex-1">
+                  {change.skill.replace(/_/g, ' ')}
+                </span>
                 <div className="flex items-center gap-2">
                   <StatusPill status={change.from_status} />
-                  <ArrowRight size={14} className="text-gray-400" />
+                  <ArrowRight size={14} className="text-[var(--text-muted)]" />
                   <StatusPill status={change.to_status} />
                 </div>
               </div>
@@ -199,11 +227,12 @@ export default function WhatIfPage() {
 }
 
 const STATUS_STYLES = {
-  fully_matched:    'bg-green-100 text-green-700',
-  partially_matched:'bg-blue-100 text-blue-700',
-  transferable:     'bg-purple-100 text-purple-700',
-  missing:          'bg-red-100 text-red-700',
+  fully_matched:    'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400',
+  partially_matched:'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400',
+  transferable:     'bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400',
+  missing:          'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400',
 }
+
 const STATUS_LABELS = {
   fully_matched: 'Matched', partially_matched: 'Partial',
   transferable: 'Transferable', missing: 'Missing',
@@ -211,7 +240,7 @@ const STATUS_LABELS = {
 
 function StatusPill({ status }) {
   return (
-    <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${STATUS_STYLES[status] || 'bg-gray-100 text-gray-600'}`}>
+    <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${STATUS_STYLES[status] || 'bg-[var(--surface-secondary)] text-[var(--text-secondary)]'}`}>
       {STATUS_LABELS[status] || status}
     </span>
   )

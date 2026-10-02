@@ -2,9 +2,11 @@ import { useEffect, useState, useRef, useCallback } from 'react'
 import { useParams } from 'react-router-dom'
 import { GitBranch, Info, Search, ZoomIn, ZoomOut, RefreshCw } from 'lucide-react'
 import { graphApi, analysisApi } from '../../api'
+import { useTheme } from '../../context/ThemeContext'
 
 export default function GraphExplorer() {
   const { analysisId } = useParams()
+  const { isDark } = useTheme()
   const [graphData, setGraphData] = useState(null)
   const [loading, setLoading] = useState(true)
   const [searchTerm, setSearchTerm] = useState('')
@@ -28,7 +30,6 @@ export default function GraphExplorer() {
         setStats(statsRes.data)
         setGraphData(graphRes.data)
       } catch (e) {
-        // fallback: try full graph
         try {
           const res = await graphApi.full()
           setGraphData(res.data)
@@ -40,11 +41,10 @@ export default function GraphExplorer() {
     loadData()
   }, [analysisId])
 
-  // Layout: simple force-directed positions
+  // Layout: force-directed positions
   useEffect(() => {
     if (!graphData) return
     const nodes = graphData.nodes || []
-    // Random initial positions
     nodes.forEach(n => {
       if (!nodePositions.current[n.id]) {
         nodePositions.current[n.id] = {
@@ -63,7 +63,6 @@ export default function GraphExplorer() {
     const iterations = 80
 
     for (let iter = 0; iter < iterations; iter++) {
-      // Repulsion
       for (let i = 0; i < nodes.length; i++) {
         for (let j = i + 1; j < nodes.length; j++) {
           const a = positions[nodes[i].id]
@@ -77,7 +76,6 @@ export default function GraphExplorer() {
           b.vx += fx; b.vy += fy
         }
       }
-      // Attraction
       for (const e of edges) {
         const a = positions[e.source], b = positions[e.target]
         if (!a || !b) continue
@@ -87,7 +85,6 @@ export default function GraphExplorer() {
         a.vx += (dx / dist) * force; a.vy += (dy / dist) * force
         b.vx -= (dx / dist) * force; b.vy -= (dy / dist) * force
       }
-      // Damping
       for (const n of nodes) {
         const p = positions[n.id]
         if (!p) continue
@@ -104,6 +101,11 @@ export default function GraphExplorer() {
     const ctx = canvas.getContext('2d')
     const w = canvas.width, h = canvas.height
     ctx.clearRect(0, 0, w, h)
+
+    // Canvas background
+    ctx.fillStyle = isDark ? '#1e2535' : '#ffffff'
+    ctx.fillRect(0, 0, w, h)
+
     ctx.save()
     ctx.translate(pan.x, pan.y)
     ctx.scale(zoom, zoom)
@@ -113,13 +115,22 @@ export default function GraphExplorer() {
     const edges = graphData.edges || []
     const search = searchTerm.toLowerCase()
 
-    const REL_COLORS = {
-      prerequisite_of: '#f59e0b',
-      related_to:      '#6366f1',
-      supports:        '#10b981',
-      transferable_to: '#8b5cf6',
-      part_of:         '#3b82f6',
-    }
+    // Relationship colors — slightly desaturated in dark mode for subtlety
+    const REL_COLORS = isDark
+      ? {
+          prerequisite_of: '#d97706', // amber-600
+          related_to:      '#6366f1', // indigo-500
+          supports:        '#059669', // emerald-600
+          transferable_to: '#7c3aed', // violet-600
+          part_of:         '#2563eb', // blue-600
+        }
+      : {
+          prerequisite_of: '#f59e0b',
+          related_to:      '#6366f1',
+          supports:        '#10b981',
+          transferable_to: '#8b5cf6',
+          part_of:         '#3b82f6',
+        }
 
     // Draw edges
     for (const e of edges) {
@@ -128,9 +139,9 @@ export default function GraphExplorer() {
       ctx.beginPath()
       ctx.moveTo(a.x, a.y)
       ctx.lineTo(b.x, b.y)
-      ctx.strokeStyle = REL_COLORS[e.relation] || '#d1d5db'
+      ctx.strokeStyle = REL_COLORS[e.relation] || (isDark ? '#3d4f6e' : '#d1d5db')
       ctx.lineWidth = 1.2
-      ctx.globalAlpha = 0.5
+      ctx.globalAlpha = isDark ? 0.4 : 0.5
       ctx.stroke()
       ctx.globalAlpha = 1
 
@@ -143,8 +154,8 @@ export default function GraphExplorer() {
       ctx.lineTo(ax - 8 * Math.cos(angle - 0.4), ay - 8 * Math.sin(angle - 0.4))
       ctx.lineTo(ax - 8 * Math.cos(angle + 0.4), ay - 8 * Math.sin(angle + 0.4))
       ctx.closePath()
-      ctx.fillStyle = REL_COLORS[e.relation] || '#d1d5db'
-      ctx.globalAlpha = 0.5
+      ctx.fillStyle = REL_COLORS[e.relation] || (isDark ? '#3d4f6e' : '#d1d5db')
+      ctx.globalAlpha = isDark ? 0.4 : 0.5
       ctx.fill()
       ctx.globalAlpha = 1
     }
@@ -155,24 +166,39 @@ export default function GraphExplorer() {
       if (!p) continue
       const isHighlighted = n.highlight
       const isSelected = selectedNode?.id === n.id
-      const isSearched = search && n.id.includes(search)
+      const isSearched = search && n.id.toLowerCase().includes(search)
       const r = isHighlighted || isSelected ? 20 : 14
 
+      // Node fill
       ctx.beginPath()
       ctx.arc(p.x, p.y, r, 0, Math.PI * 2)
-      ctx.fillStyle = isSelected ? '#4f46e5'
-        : isHighlighted ? '#10b981'
-        : isSearched ? '#f59e0b'
-        : '#e0e7ff'
+
+      if (isSelected) {
+        ctx.fillStyle = isDark ? '#6366f1' : '#4f46e5'
+      } else if (isHighlighted) {
+        ctx.fillStyle = isDark ? '#059669' : '#10b981'
+      } else if (isSearched) {
+        ctx.fillStyle = isDark ? '#b45309' : '#f59e0b'
+      } else {
+        ctx.fillStyle = isDark ? '#252f45' : '#e0e7ff'
+      }
       ctx.fill()
-      ctx.strokeStyle = isSelected ? '#3730a3'
-        : isHighlighted ? '#059669'
-        : '#c7d2fe'
+
+      // Node stroke
+      ctx.strokeStyle = isSelected
+        ? (isDark ? '#818cf8' : '#3730a3')
+        : isHighlighted
+          ? (isDark ? '#34d399' : '#059669')
+          : (isDark ? '#3d4f6e' : '#c7d2fe')
       ctx.lineWidth = 2
       ctx.stroke()
 
       // Label
-      ctx.fillStyle = isSelected || isHighlighted ? '#fff' : '#374151'
+      const labelColor = (isSelected || isHighlighted)
+        ? '#ffffff'
+        : (isDark ? '#cbd5e1' : '#374151')
+
+      ctx.fillStyle = labelColor
       ctx.font = `${isHighlighted || isSelected ? 600 : 400} ${r < 18 ? 9 : 10}px Inter,sans-serif`
       ctx.textAlign = 'center'
       ctx.textBaseline = 'middle'
@@ -181,13 +207,12 @@ export default function GraphExplorer() {
     }
 
     ctx.restore()
-  }, [graphData, zoom, pan, selectedNode, searchTerm])
+  }, [graphData, zoom, pan, selectedNode, searchTerm, isDark])
 
   useEffect(() => {
     drawGraph()
   }, [drawGraph])
 
-  // Mouse events
   const getNodeAt = (mx, my) => {
     const nodes = graphData?.nodes || []
     for (const n of nodes) {
@@ -238,35 +263,78 @@ export default function GraphExplorer() {
     setZoom(z => Math.max(0.3, Math.min(3, z - e.deltaY * 0.001)))
   }
 
+  // Legend relationship colors (for the UI legend below the canvas)
+  const legendColors = isDark
+    ? {
+        prerequisite_of: '#d97706',
+        related_to:      '#818cf8',
+        supports:        '#34d399',
+        transferable_to: '#a78bfa',
+        part_of:         '#60a5fa',
+      }
+    : {
+        prerequisite_of: '#f59e0b',
+        related_to:      '#6366f1',
+        supports:        '#10b981',
+        transferable_to: '#8b5cf6',
+        part_of:         '#3b82f6',
+      }
+
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <div>
           <h1 className="page-title flex items-center gap-2">
-            <GitBranch size={22} className="text-primary-600" /> Skill Knowledge Graph
+            <GitBranch size={22} className="text-[var(--accent)]" /> Skill Knowledge Graph
           </h1>
-          <p className="text-sm text-gray-500 mt-1">
-            {stats ? `${stats.node_count} skills · ${stats.edge_count} relationships` : 'Interactive skill relationship explorer'}
+          <p className="text-sm text-[var(--text-secondary)] mt-1">
+            {stats
+              ? `${stats.node_count} skills · ${stats.edge_count} relationships`
+              : 'Interactive skill relationship explorer'}
           </p>
         </div>
         <div className="flex gap-2">
-          <button onClick={() => setZoom(z => Math.min(3, z + 0.2))} className="btn-secondary text-xs py-1.5 px-2.5"><ZoomIn size={14} /></button>
-          <button onClick={() => setZoom(z => Math.max(0.3, z - 0.2))} className="btn-secondary text-xs py-1.5 px-2.5"><ZoomOut size={14} /></button>
-          <button onClick={() => { setZoom(1); setPan({ x: 0, y: 0 }) }} className="btn-secondary text-xs py-1.5 px-2.5"><RefreshCw size={14} /></button>
+          <button
+            onClick={() => setZoom(z => Math.min(3, z + 0.2))}
+            className="btn-secondary text-xs py-1.5 px-2.5"
+          >
+            <ZoomIn size={14} />
+          </button>
+          <button
+            onClick={() => setZoom(z => Math.max(0.3, z - 0.2))}
+            className="btn-secondary text-xs py-1.5 px-2.5"
+          >
+            <ZoomOut size={14} />
+          </button>
+          <button
+            onClick={() => { setZoom(1); setPan({ x: 0, y: 0 }) }}
+            className="btn-secondary text-xs py-1.5 px-2.5"
+          >
+            <RefreshCw size={14} />
+          </button>
         </div>
       </div>
 
       {/* Controls */}
       <div className="flex gap-3">
         <div className="relative">
-          <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-          <input className="input pl-8 w-52" placeholder="Search skill…"
-            value={searchTerm} onChange={e => setSearchTerm(e.target.value)} />
+          <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--text-muted)]" />
+          <input
+            className="input pl-8 w-52"
+            placeholder="Search skill…"
+            value={searchTerm}
+            onChange={e => setSearchTerm(e.target.value)}
+          />
         </div>
         {selectedNode && (
-          <div className="flex items-center gap-2 px-3 py-1.5 bg-primary-50 text-primary-700 rounded-lg text-sm font-medium">
+          <div className="flex items-center gap-2 px-3 py-1.5 bg-[var(--accent-subtle)] text-[var(--accent)] rounded-lg text-sm font-medium border border-[var(--border)]">
             <Info size={14} /> {selectedNode.label || selectedNode.id}
-            <button onClick={() => setSelectedNode(null)} className="text-gray-400 hover:text-gray-600">×</button>
+            <button
+              onClick={() => setSelectedNode(null)}
+              className="text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-colors"
+            >
+              ×
+            </button>
           </div>
         )}
       </div>
@@ -274,13 +342,14 @@ export default function GraphExplorer() {
       {/* Canvas */}
       <div className="card overflow-hidden" style={{ height: 540 }}>
         {loading ? (
-          <div className="h-full flex items-center justify-center text-gray-400">
+          <div className="h-full flex items-center justify-center text-[var(--text-muted)]">
             <RefreshCw size={24} className="animate-spin mr-2" /> Loading graph…
           </div>
         ) : (
           <canvas
             ref={canvasRef}
-            width={900} height={540}
+            width={900}
+            height={540}
             style={{ width: '100%', height: '100%', cursor: dragging.current ? 'grabbing' : 'grab' }}
             onMouseDown={handleMouseDown}
             onMouseMove={handleMouseMove}
@@ -293,23 +362,26 @@ export default function GraphExplorer() {
 
       {/* Legend */}
       <div className="card p-4">
-        <p className="text-xs font-semibold text-gray-500 mb-3">Relationship Types</p>
+        <p className="text-xs font-semibold text-[var(--text-muted)] mb-3">Relationship Types</p>
         <div className="flex flex-wrap gap-4">
           {[
-            { rel: 'prerequisite_of', color: '#f59e0b', label: 'Prerequisite Of' },
-            { rel: 'related_to',      color: '#6366f1', label: 'Related To' },
-            { rel: 'supports',        color: '#10b981', label: 'Supports' },
-            { rel: 'transferable_to', color: '#8b5cf6', label: 'Transferable To' },
-            { rel: 'part_of',         color: '#3b82f6', label: 'Part Of' },
-          ].map(({ color, label }) => (
-            <div key={label} className="flex items-center gap-1.5 text-xs text-gray-600">
-              <div className="w-6 h-1 rounded-full" style={{ background: color }} />
+            { rel: 'prerequisite_of', label: 'Prerequisite Of' },
+            { rel: 'related_to',      label: 'Related To' },
+            { rel: 'supports',        label: 'Supports' },
+            { rel: 'transferable_to', label: 'Transferable To' },
+            { rel: 'part_of',         label: 'Part Of' },
+          ].map(({ rel, label }) => (
+            <div key={label} className="flex items-center gap-1.5 text-xs text-[var(--text-secondary)]">
+              <div className="w-6 h-1 rounded-full" style={{ background: legendColors[rel] }} />
               {label}
             </div>
           ))}
         </div>
-        <p className="text-xs text-gray-400 mt-3">
-          <span className="inline-block w-3 h-3 rounded-full bg-green-400 mr-1 align-middle" />
+        <p className="text-xs text-[var(--text-muted)] mt-3">
+          <span
+            className="inline-block w-3 h-3 rounded-full mr-1 align-middle"
+            style={{ background: isDark ? '#059669' : '#10b981' }}
+          />
           Green nodes = candidate/job skills.
           Drag nodes to reposition. Scroll to zoom. Click a node to inspect.
         </p>

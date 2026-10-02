@@ -22,11 +22,19 @@ export default function RecruiterUpload() {
   const [processing, setProcessing] = useState(false)
 
   const onDrop = useCallback((accepted) => {
-    setFiles(prev => [...prev, ...accepted.map(f => ({ file: f, status: 'pending', resumeId: null, analysisId: null, error: null }))])
+    setFiles(prev => [
+      ...prev,
+      ...accepted.map(f => ({ file: f, status: 'pending', resumeId: null, analysisId: null, error: null })),
+    ])
   }, [])
 
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
-    onDrop, accept: { 'application/pdf': [], 'application/vnd.openxmlformats-officedocument.wordprocessingml.document': [], 'text/plain': [] },
+    onDrop,
+    accept: {
+      'application/pdf': [],
+      'application/vnd.openxmlformats-officedocument.wordprocessingml.document': [],
+      'text/plain': [],
+    },
   })
 
   const submitJob = async () => {
@@ -52,7 +60,6 @@ export default function RecruiterUpload() {
 
     for (let i = 0; i < files.length; i++) {
       setFiles(prev => prev.map((f, idx) => idx === i ? { ...f, status: 'uploading' } : f))
-
       try {
         const fd = new FormData()
         fd.append('file', files[i].file)
@@ -73,7 +80,10 @@ export default function RecruiterUpload() {
 
         setFiles(prev => prev.map((f, idx) => idx === i ? { ...f, status: 'done', resumeId, analysisId: analysis.id } : f))
       } catch (err) {
-        setFiles(prev => prev.map((f, idx) => idx === i ? { ...f, status: 'error', error: err.response?.data?.error || 'Failed' } : f))
+        setFiles(prev => prev.map((f, idx) => idx === i
+          ? { ...f, status: 'error', error: err.response?.data?.error || 'Failed' }
+          : f
+        ))
       }
     }
 
@@ -82,11 +92,11 @@ export default function RecruiterUpload() {
   }
 
   const STATUS_ICON = {
-    pending:   <div className="w-4 h-4 rounded-full border-2 border-gray-300" />,
-    uploading: <Loader2 size={16} className="animate-spin text-blue-500" />,
-    analyzing: <Loader2 size={16} className="animate-spin text-primary-500" />,
-    done:      <CheckCircle size={16} className="text-green-500" />,
-    error:     <AlertCircle size={16} className="text-red-500" />,
+    pending:   <div className="w-4 h-4 rounded-full border-2 border-[var(--border)]" />,
+    uploading: <Loader2 size={16} className="animate-spin text-blue-500 dark:text-blue-400" />,
+    analyzing: <Loader2 size={16} className="animate-spin text-[var(--accent)]" />,
+    done:      <CheckCircle size={16} className="text-green-500 dark:text-green-400" />,
+    error:     <AlertCircle size={16} className="text-red-500 dark:text-red-400" />,
   }
 
   return (
@@ -97,35 +107,52 @@ export default function RecruiterUpload() {
       <div className="flex items-center gap-2">
         {['Job Description', 'Upload Resumes', 'Process & Rank'].map((s, i) => (
           <div key={s} className="flex items-center flex-1">
-            <div className={`flex items-center gap-2 ${i <= step ? 'text-primary-600' : 'text-gray-400'}`}>
+            <div className={`flex items-center gap-2 ${i <= step ? 'text-[var(--accent)]' : 'text-[var(--text-muted)]'}`}>
               <div className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold border-2 ${
-                i < step ? 'bg-primary-600 border-primary-600 text-white'
-                : i === step ? 'border-primary-600' : 'border-gray-300'
-              }`}>{i < step ? '✓' : i + 1}</div>
+                i < step
+                  ? 'bg-[var(--accent)] border-[var(--accent)] text-white'
+                  : i === step
+                    ? 'border-[var(--accent)] text-[var(--accent)]'
+                    : 'border-[var(--border)] text-[var(--text-muted)]'
+              }`}>
+                {i < step ? '✓' : i + 1}
+              </div>
               <span className="text-xs font-medium hidden md:block">{s}</span>
             </div>
-            {i < 2 && <div className={`flex-1 h-px mx-2 ${i < step ? 'bg-primary-400' : 'bg-gray-200'}`} />}
+            {i < 2 && (
+              <div className={`flex-1 h-px mx-2 ${i < step ? 'bg-[var(--accent)]' : 'bg-[var(--border)]'}`} />
+            )}
           </div>
         ))}
       </div>
 
-      {/* Step 0: Job */}
+      {/* Step 0: Job description */}
       {step === 0 && (
         <div className="card p-6 space-y-4">
           <h2 className="section-title">Enter Job Description</h2>
           <div>
             <label className="label">Job Title (optional)</label>
-            <input className="input" placeholder="e.g. Senior Backend Developer"
-              value={jobTitle} onChange={e => setJobTitle(e.target.value)} />
+            <input
+              className="input"
+              placeholder="e.g. Senior Backend Developer"
+              value={jobTitle}
+              onChange={e => setJobTitle(e.target.value)}
+            />
           </div>
           <div>
             <label className="label">Job Description *</label>
-            <textarea className="input resize-none" rows={10}
+            <textarea
+              className="input resize-none"
+              rows={10}
               placeholder="Paste the full job description…"
-              value={jobText} onChange={e => setJobText(e.target.value)} />
+              value={jobText}
+              onChange={e => setJobText(e.target.value)}
+            />
           </div>
           <button onClick={submitJob} disabled={jobLoading} className="btn-primary w-full justify-center py-2.5">
-            {jobLoading ? <Loader2 size={16} className="animate-spin" /> : <>Continue <ChevronRight size={16} /></>}
+            {jobLoading
+              ? <Loader2 size={16} className="animate-spin" />
+              : <>Continue <ChevronRight size={16} /></>}
           </button>
         </div>
       )}
@@ -135,29 +162,44 @@ export default function RecruiterUpload() {
         <div className="card p-6 space-y-4">
           <div className="flex items-center justify-between">
             <h2 className="section-title">Upload Candidate Resumes</h2>
-            <span className="text-xs text-gray-400">{files.length} file(s) added</span>
+            <span className="text-xs text-[var(--text-muted)]">{files.length} file(s) added</span>
           </div>
 
-          <div className="p-3 bg-blue-50 text-blue-700 rounded-lg text-sm flex items-start gap-2">
+          {/* Job info banner */}
+          <div className="p-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800
+                          text-blue-700 dark:text-blue-400 rounded-lg text-sm flex items-start gap-2">
             <Info size={14} className="mt-0.5 shrink-0" />
             Job: <strong>{jobData?.title}</strong> · {jobData?.skills?.length || 0} requirements extracted
           </div>
 
-          <div {...getRootProps()} className={`border-2 border-dashed rounded-xl p-8 text-center cursor-pointer transition-colors ${isDragActive ? 'border-primary-400 bg-primary-50' : 'border-gray-300 hover:border-primary-400'}`}>
+          {/* Dropzone */}
+          <div
+            {...getRootProps()}
+            className={`border-2 border-dashed rounded-xl p-8 text-center cursor-pointer transition-colors ${
+              isDragActive
+                ? 'border-[var(--accent)] bg-[var(--accent-subtle)]'
+                : 'border-[var(--border)] hover:border-[var(--accent)] hover:bg-[var(--surface-secondary)]'
+            }`}
+          >
             <input {...getInputProps()} />
-            <Upload size={32} className="mx-auto text-gray-400 mb-2" />
-            <p className="font-medium text-gray-700 text-sm">Drop resumes here or click to browse</p>
-            <p className="text-xs text-gray-400 mt-1">PDF, DOCX, TXT · Multiple files supported</p>
+            <Upload size={32} className="mx-auto text-[var(--text-muted)] mb-2" />
+            <p className="font-medium text-[var(--text-primary)] text-sm">
+              Drop resumes here or click to browse
+            </p>
+            <p className="text-xs text-[var(--text-muted)] mt-1">PDF, DOCX, TXT · Multiple files supported</p>
           </div>
 
           {files.length > 0 && (
             <div className="space-y-2 max-h-48 overflow-y-auto">
               {files.map((f, i) => (
-                <div key={i} className="flex items-center gap-3 p-2.5 bg-gray-50 rounded-lg">
-                  <FileText size={16} className="text-primary-500 shrink-0" />
-                  <span className="text-sm flex-1 truncate">{f.file.name}</span>
-                  <span className="text-xs text-gray-400">{(f.file.size / 1024).toFixed(0)} KB</span>
-                  <button onClick={() => setFiles(prev => prev.filter((_, idx) => idx !== i))} className="text-gray-400 hover:text-red-500">
+                <div key={i} className="flex items-center gap-3 p-2.5 bg-[var(--surface-secondary)] rounded-lg border border-[var(--border)]">
+                  <FileText size={16} className="text-[var(--accent)] shrink-0" />
+                  <span className="text-sm flex-1 truncate text-[var(--text-primary)]">{f.file.name}</span>
+                  <span className="text-xs text-[var(--text-muted)]">{(f.file.size / 1024).toFixed(0)} KB</span>
+                  <button
+                    onClick={() => setFiles(prev => prev.filter((_, idx) => idx !== i))}
+                    className="text-[var(--text-muted)] hover:text-red-500 dark:hover:text-red-400 transition-colors"
+                  >
                     <X size={15} />
                   </button>
                 </div>
@@ -167,32 +209,41 @@ export default function RecruiterUpload() {
 
           <div className="flex gap-3">
             <button onClick={() => setStep(0)} className="btn-secondary flex-1 justify-center">Back</button>
-            <button onClick={processAll} disabled={files.length === 0} className="btn-primary flex-1 justify-center py-2.5">
+            <button
+              onClick={processAll}
+              disabled={files.length === 0}
+              className="btn-primary flex-1 justify-center py-2.5"
+            >
               Process {files.length} Resume{files.length !== 1 ? 's' : ''} <ChevronRight size={16} />
             </button>
           </div>
         </div>
       )}
 
-      {/* Step 2: Results */}
+      {/* Step 2: Processing results */}
       {step === 2 && (
         <div className="card p-6 space-y-4">
           <h2 className="section-title">Processing Results</h2>
 
           <div className="space-y-2">
             {files.map((f, i) => (
-              <div key={i} className="flex items-center gap-3 p-3 rounded-lg border border-gray-100">
+              <div key={i} className="flex items-center gap-3 p-3 rounded-lg border border-[var(--border)] bg-[var(--surface-secondary)]">
                 {STATUS_ICON[f.status]}
-                <span className="text-sm flex-1 truncate">{f.file.name}</span>
+                <span className="text-sm flex-1 truncate text-[var(--text-primary)]">{f.file.name}</span>
                 <span className={`text-xs font-medium ${
-                  f.status === 'done' ? 'text-green-600'
-                  : f.status === 'error' ? 'text-red-600'
-                  : 'text-gray-500'
+                  f.status === 'done'  ? 'text-green-600 dark:text-green-400'
+                  : f.status === 'error' ? 'text-red-600 dark:text-red-400'
+                  : 'text-[var(--text-muted)]'
                 }`}>
                   {f.status === 'error' ? f.error : f.status}
                 </span>
                 {f.analysisId && (
-                  <a href={`/analysis/${f.analysisId}`} className="text-primary-600 text-xs underline">View</a>
+                  <a
+                    href={`/analysis/${f.analysisId}`}
+                    className="text-[var(--accent)] text-xs underline hover:no-underline"
+                  >
+                    View
+                  </a>
                 )}
               </div>
             ))}
@@ -200,20 +251,28 @@ export default function RecruiterUpload() {
 
           {!processing && results.length > 0 && (
             <div>
-              <h3 className="font-semibold text-gray-900 mb-3">Ranked Results</h3>
+              <h3 className="font-semibold text-[var(--text-primary)] mb-3">Ranked Results</h3>
               <div className="space-y-2">
                 {results.map((r, i) => (
-                  <div key={r.analysisId} className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg">
-                    <span className="w-6 text-sm font-bold text-gray-400">#{i + 1}</span>
-                    <span className="flex-1 font-medium text-gray-900 text-sm">{r.name}</span>
-                    <span className="font-bold text-gray-900">{r.score}%</span>
-                    <span className="text-xs text-gray-500">{r.label}</span>
-                    <a href={`/analysis/${r.analysisId}`} className="btn-secondary text-xs py-1 px-2.5">View</a>
+                  <div key={r.analysisId} className="flex items-center gap-3 p-3 bg-[var(--surface-secondary)] rounded-lg border border-[var(--border)]">
+                    <span className="w-6 text-sm font-bold text-[var(--text-muted)]">#{i + 1}</span>
+                    <span className="flex-1 font-medium text-[var(--text-primary)] text-sm">{r.name}</span>
+                    <span className="font-bold text-[var(--text-primary)]">{r.score}%</span>
+                    <span className="text-xs text-[var(--text-muted)]">{r.label}</span>
+                    <a
+                      href={`/analysis/${r.analysisId}`}
+                      className="btn-secondary text-xs py-1 px-2.5"
+                    >
+                      View
+                    </a>
                   </div>
                 ))}
               </div>
               <div className="flex gap-3 mt-4">
-                <button onClick={() => navigate('/recruiter/candidates')} className="btn-primary flex-1 justify-center">
+                <button
+                  onClick={() => navigate('/recruiter/candidates')}
+                  className="btn-primary flex-1 justify-center"
+                >
                   View All Candidates
                 </button>
               </div>
