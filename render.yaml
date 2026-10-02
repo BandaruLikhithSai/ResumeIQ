@@ -13,6 +13,7 @@ services:
     envVars:
       - key: FLASK_ENV
         value: production
+
       - key: PYTHON_VERSION
         value: "3.12.11"
 
@@ -22,6 +23,8 @@ services:
       - key: JWT_SECRET_KEY
         generateValue: true
 
+      # Linked to the PostgreSQL instance below — this is the permanent fix.
+      # Render injects a real postgres:// URL here; SQLite is never used in prod.
       - key: DATABASE_URL
         fromDatabase:
           name: resumeiq-db
@@ -84,6 +87,8 @@ services:
         value: https://resumeiq-api-8wvo.onrender.com
 
 # ── PostgreSQL Database ────────────────────────────────────────
+# This is the PERSISTENT database. Data survives container restarts.
+# Free plan: 1 GB storage, 90-day expiry (renew by re-deploying render.yaml).
 databases:
   - name: resumeiq-db
     databaseName: resumeiq
