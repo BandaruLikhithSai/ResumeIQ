@@ -94,8 +94,8 @@ def list_candidates():
 @jwt_required()
 def compare_candidates():
     """
-    Compare two analyses side by side.
-    ?analysis_ids=1,2
+    Compare 2–4 analyses side by side.
+    ?analysis_ids=1,2,3
     """
     ids_param = request.args.get("analysis_ids", "")
     try:
@@ -106,50 +106,66 @@ def compare_candidates():
     if len(ids) < 2:
         return jsonify({"error": "Provide at least 2 analysis IDs"}), 400
 
-    analyses = [Analysis.query.get_or_404(i) for i in ids[:4]]  # cap at 4
+    # Cap at 4 and fetch — skip any IDs that don't exist instead of 404-ing
+    analyses = []
+    for i in ids[:4]:
+        a = Analysis.query.get(i)
+        if a:
+            analyses.append(a)
 
-    comparison = []
-    for analysis in analyses:
-        resume = Resume.query.get(analysis.resume_id)
-        skill_matches = {sm.job_skill: sm.to_dict() for sm in analysis.skill_matches.all()}
-        comparison.append({
-            "analysis_id": analysis.id,
-            "candidate_name": resume.candidate_name if resume else "Unknown",
-            "overall_score": analysis.overall_score,
-            "match_label": analysis.match_label,
-            "component_scores": {
-                "tfidf": analysis.tfidf_score,
-                "semantic": analysis.semantic_score,
-                "knowledge_graph": analysis.kg_score,
-                "experience": analysis.experience_score,
-            },
-            "counts": {
-                "fully_matched": analysis.fully_matched_count,
-                "partially_matched": analysis.partially_matched_count,
-                "transferable": analysis.transferable_count,
-                "missing": analysis.missing_count,
-            },
-            "skill_matches": skill_matches,
-            "strengths": json.loads(analysis.strengths_json) if analysis.strengths_json else [],
+    if len(analyses) < 2:
+        return jsonify({"error": "Could not find at least 2 valid analyses for the given IDs"}), 404
+
+    try:
+        # Build per-candidate skill_match lookup (kept separate — not sent to client)
+        skill_match_maps = {}
+        comparison = []
+
+        for analysis in analyses:
+            resume = Resume.query.get(analysis.resume_id)
+            sm_map = {sm.job_skill: sm.match_status for sm in analysis.skill_matches.all()}
+            skill_match_maps[analysis.id] = sm_map
+
+            comparison.append({
+                "analysis_id": analysis.id,
+                "candidate_name": resume.candidate_name if resume else f"Candidate #{analysis.resume_id}",
+                "overall_score": round(analysis.overall_score or 0, 1),
+                "match_label": analysis.match_label or "",
+                "component_scores": {
+                    "tfidf":           round(analysis.tfidf_score or 0, 1),
+                    "semantic":        round(analysis.semantic_score or 0, 1),
+                    "knowledge_graph": round(analysis.kg_score or 0, 1),
+                    "experience":      round(analysis.experience_score or 0, 1),
+                },
+                "counts": {
+                    "fully_matched":    analysis.fully_matched_count or 0,
+                    "partially_matched":analysis.partially_matched_count or 0,
+                    "transferable":     analysis.transferable_count or 0,
+                    "missing":          analysis.missing_count or 0,
+                },
+                "strengths": json.loads(analysis.strengths_json) if analysis.strengths_json else [],
+            })
+
+        # Build unified requirement matrix from the job of the first analysis
+        job = Job.query.get(analyses[0].job_id)
+        all_requirements = [s.normalized_skill for s in job.skills.all()] if job else []
+
+        matrix = []
+        for req in all_requirements:
+            row = {"requirement": req}
+            for analysis in analyses:
+                row[analysis.id] = skill_match_maps[analysis.id].get(req, "missing")
+            matrix.append(row)
+
+        return jsonify({
+            "candidates": comparison,
+            "requirement_matrix": matrix,
+            "job_title": job.title if job else "Unknown",
         })
 
-    # Build a unified requirement matrix
-    job = Job.query.get(analyses[0].job_id)
-    all_requirements = [s.normalized_skill for s in job.skills.all()] if job else []
-
-    matrix = []
-    for req in all_requirements:
-        row = {"requirement": req}
-        for comp in comparison:
-            sm = comp["skill_matches"].get(req)
-            row[comp["analysis_id"]] = sm["match_status"] if sm else "missing"
-        matrix.append(row)
-
-    return jsonify({
-        "candidates": comparison,
-        "requirement_matrix": matrix,
-        "job_title": job.title if job else "Unknown",
-    })
+    except Exception as exc:
+        logger.exception("Comparison failed for IDs %s", ids)
+        return jsonify({"error": f"Comparison failed: {str(exc)}"}), 500
 
 
 @recruiter_bp.put("/candidates/<int:analysis_id>/status")
