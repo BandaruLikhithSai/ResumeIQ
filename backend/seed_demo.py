@@ -292,203 +292,226 @@ Responsibilities:
 ]
 
 
-def seed():
-    app = create_app()
-    with app.app_context():
+def seed(app=None):
+    """
+    Seed demo data.
+
+    - Called from wsgi.py on every cold start with the existing app instance.
+    - Called standalone (python seed_demo.py) with no argument — creates its own app.
+    - Fully idempotent: checks for existing demo user before inserting anything.
+    """
+    if app is None:
+        # Standalone mode: create app + push context ourselves
+        _app = create_app()
+        with _app.app_context():
+            db.create_all()
+            _do_seed()
+    else:
+        # Called from inside an existing app context (e.g. wsgi.py)
         db.create_all()
+        _do_seed()
 
-        # ── Demo Users ────────────────────────────────────────────────────
-        existing_emails = {u.email for u in User.query.all()}
 
-        demo_candidate = User.query.filter_by(email="demo_candidate@resumeiq.demo").first()
-        if not demo_candidate:
-            demo_candidate = User(
-                email="demo_candidate@resumeiq.demo",
-                full_name="Demo Candidate",
-                role="candidate",
-                is_demo=True,
-            )
-            demo_candidate.set_password("demo1234")
-            db.session.add(demo_candidate)
+def _do_seed():
+    # ── Demo Users ────────────────────────────────────────────────────────
+    demo_candidate = User.query.filter_by(email="demo_candidate@resumeiq.demo").first()
+    if not demo_candidate:
+        demo_candidate = User(
+            email="demo_candidate@resumeiq.demo",
+            full_name="Demo Candidate",
+            role="candidate",
+            is_demo=True,
+        )
+        demo_candidate.set_password("demo1234")
+        db.session.add(demo_candidate)
 
-        demo_recruiter = User.query.filter_by(email="demo_recruiter@resumeiq.demo").first()
-        if not demo_recruiter:
-            demo_recruiter = User(
-                email="demo_recruiter@resumeiq.demo",
-                full_name="Demo Recruiter",
-                role="recruiter",
-                is_demo=True,
-            )
-            demo_recruiter.set_password("demo1234")
-            db.session.add(demo_recruiter)
+    demo_recruiter = User.query.filter_by(email="demo_recruiter@resumeiq.demo").first()
+    if not demo_recruiter:
+        demo_recruiter = User(
+            email="demo_recruiter@resumeiq.demo",
+            full_name="Demo Recruiter",
+            role="recruiter",
+            is_demo=True,
+        )
+        demo_recruiter.set_password("demo1234")
+        db.session.add(demo_recruiter)
 
+    db.session.flush()
+
+    # ── Demo Jobs ─────────────────────────────────────────────────────────
+    jobs = []
+    for jd in DEMO_JOBS:
+        job = Job(
+            user_id=demo_recruiter.id,
+            title=jd["title"],
+            company=jd["company"],
+            domain=jd["domain"],
+            raw_text=jd["raw_text"],
+            required_experience_years=jd["required_experience_years"],
+            education_requirement=jd["education_requirement"],
+            responsibilities_json=json.dumps([]),
+            extraction_status="done",
+            is_demo=True,
+        )
+        db.session.add(job)
         db.session.flush()
 
-        # ── Demo Jobs ─────────────────────────────────────────────────────
-        jobs = []
-        for jd in DEMO_JOBS:
-            job = Job(
-                user_id=demo_recruiter.id,
-                title=jd["title"],
-                company=jd["company"],
-                domain=jd["domain"],
-                raw_text=jd["raw_text"],
-                required_experience_years=jd["required_experience_years"],
-                education_requirement=jd["education_requirement"],
-                responsibilities_json=json.dumps([]),
-                extraction_status="done",
-                is_demo=True,
-            )
-            db.session.add(job)
-            db.session.flush()
-
-            for skill_data in jd["required_skills"]:
-                js = JobSkill(
-                    job_id=job.id,
-                    raw_skill=skill_data["raw_skill"],
-                    normalized_skill=skill_data["normalized_skill"],
-                    category=skill_data["category"],
-                    priority=skill_data["priority"],
-                    importance_weight=skill_data["importance_weight"],
-                )
-                db.session.add(js)
-            jobs.append(job)
-
-        db.session.flush()
-
-        # ── Demo Resumes + Analyses ───────────────────────────────────────
-        engine = MatchingEngine(weights={"tfidf": 0.25, "semantic": 0.30, "kg": 0.25, "experience": 0.20})
-
-        for resume_data in DEMO_RESUMES:
-            resume = Resume(
-                user_id=demo_candidate.id,
-                filename=resume_data["filename"],
-                file_type=resume_data["file_type"],
-                file_size=50000,
-                raw_text=resume_data["raw_text"],
-                extraction_status="done",
-                is_demo=True,
-                candidate_name=resume_data["candidate_name"],
-                email=resume_data["email"],
-                phone=resume_data["phone"],
-                education_json=json.dumps(resume_data["education"]),
-                experience_json=json.dumps(resume_data["experience"]),
-                projects_json=json.dumps(resume_data["projects"]),
-                certifications_json=json.dumps(resume_data["certifications"]),
-                total_experience_months=resume_data["total_experience_months"],
-            )
-            db.session.add(resume)
-            db.session.flush()
-
-            for skill_name in resume_data["skills"]:
-                skill = ExtractedSkill(
-                    resume_id=resume.id,
-                    raw_skill=skill_name,
-                    normalized_skill=skill_name,
-                    category="other",
-                    confidence=1.0,
-                    source_section="skills",
-                    evidence_text=f"{skill_name} found in skills section",
-                )
-                db.session.add(skill)
-
-            db.session.flush()
-
-            # Run analysis against ML Engineer job (job 0)
-            job = jobs[0]
-            candidate_skills = resume_data["skills"]
-            job_skills = [s.__dict__ for s in db.session.query(JobSkill).filter_by(job_id=job.id).all()]
-            # Clean sqlalchemy internals
-            job_skills_clean = [
-                {k: v for k, v in s.items() if not k.startswith("_")}
-                for s in job_skills
-            ]
-
-            result = engine.run(
-                resume_text=resume_data["raw_text"],
-                job_text=job.raw_text,
-                resume_data={"education": resume_data["education"], "experience": resume_data["experience"],
-                             "projects": resume_data["projects"], "total_experience_months": resume_data["total_experience_months"]},
-                job_data={"required_experience_years": job.required_experience_years,
-                          "education_requirement": job.education_requirement,
-                          "responsibilities": []},
-                candidate_skills=candidate_skills,
-                job_skills=job_skills_clean,
-            )
-
-            explanation = generate_explanation(result,
-                resume_data={"candidate_name": resume_data["candidate_name"],
-                             "education": resume_data["education"],
-                             "experience": resume_data["experience"]},
-                job_data={"title": job.title})
-
-            skill_gaps_data = generate_skill_gaps(
-                skill_matches=result["skill_matches"],
-                job_skills=job_skills_clean,
-                resume_data={},
-            )
-
-            analysis = Analysis(
-                resume_id=resume.id,
+        for skill_data in jd["required_skills"]:
+            js = JobSkill(
                 job_id=job.id,
-                user_id=demo_recruiter.id,
-                status="done",
-                overall_score=result["overall_score"],
-                match_label=result["match_label"],
-                match_color=result["match_color"],
-                tfidf_score=result["tfidf_score"],
-                semantic_score=result["semantic_score"],
-                kg_score=result["kg_score"],
-                experience_score=result["experience_score"],
-                weight_tfidf=0.25,
-                weight_semantic=0.30,
-                weight_kg=0.25,
-                weight_experience=0.20,
-                total_requirements=result["total_requirements"],
-                fully_matched_count=result["fully_matched_count"],
-                partially_matched_count=result["partially_matched_count"],
-                transferable_count=result["transferable_count"],
-                missing_count=result["missing_count"],
-                strengths_json=json.dumps(explanation["strengths"]),
-                weaknesses_json=json.dumps(explanation["weaknesses"]),
-                summary=explanation["summary"],
-                experience_match_json=json.dumps(result["experience_match"]),
-                education_match_json=json.dumps(result["education_match"]),
+                raw_skill=skill_data["raw_skill"],
+                normalized_skill=skill_data["normalized_skill"],
+                category=skill_data["category"],
+                priority=skill_data["priority"],
+                importance_weight=skill_data["importance_weight"],
             )
-            db.session.add(analysis)
-            db.session.flush()
+            db.session.add(js)
+        jobs.append(job)
 
-            for sm in result["skill_matches"]:
-                skill_match = SkillMatch(
-                    analysis_id=analysis.id,
-                    job_skill=sm["job_skill"],
-                    job_skill_priority=sm.get("job_skill_priority"),
-                    match_status=sm["match_status"],
-                    matched_candidate_skill=sm.get("matched_candidate_skill"),
-                    transfer_path=sm.get("transfer_path"),
-                    match_score=sm.get("match_score"),
-                    evidence_json=json.dumps(sm.get("evidence", [])),
-                )
-                db.session.add(skill_match)
+    db.session.flush()
 
-            for sg in skill_gaps_data:
-                skill_gap = SkillGap(
-                    analysis_id=analysis.id,
-                    skill=sg["skill"],
-                    gap_type=sg["gap_type"],
-                    priority=sg["priority"],
-                    reason=sg["reason"],
-                    learning_direction=sg["learning_direction"],
-                    estimated_learning_weeks=sg["estimated_learning_weeks"],
-                    related_resources_json=json.dumps(sg.get("related_resources", [])),
-                )
-                db.session.add(skill_gap)
+    # ── Demo Resumes + Analyses ───────────────────────────────────────────
+    engine = MatchingEngine(weights={"tfidf": 0.25, "semantic": 0.30, "kg": 0.25, "experience": 0.20})
 
-        db.session.commit()
-        print("✓ Demo data seeded successfully.")
-        print(f"  Demo candidate login: demo_candidate@resumeiq.demo / demo1234")
-        print(f"  Demo recruiter login: demo_recruiter@resumeiq.demo / demo1234")
-        print(f"  {len(DEMO_RESUMES)} resumes, {len(DEMO_JOBS)} jobs, {len(DEMO_RESUMES)} analyses created.")
+    for resume_data in DEMO_RESUMES:
+        resume = Resume(
+            user_id=demo_candidate.id,
+            filename=resume_data["filename"],
+            file_type=resume_data["file_type"],
+            file_size=50000,
+            raw_text=resume_data["raw_text"],
+            extraction_status="done",
+            is_demo=True,
+            candidate_name=resume_data["candidate_name"],
+            email=resume_data["email"],
+            phone=resume_data["phone"],
+            education_json=json.dumps(resume_data["education"]),
+            experience_json=json.dumps(resume_data["experience"]),
+            projects_json=json.dumps(resume_data["projects"]),
+            certifications_json=json.dumps(resume_data["certifications"]),
+            total_experience_months=resume_data["total_experience_months"],
+        )
+        db.session.add(resume)
+        db.session.flush()
+
+        for skill_name in resume_data["skills"]:
+            skill = ExtractedSkill(
+                resume_id=resume.id,
+                raw_skill=skill_name,
+                normalized_skill=skill_name,
+                category="other",
+                confidence=1.0,
+                source_section="skills",
+                evidence_text=f"{skill_name} found in skills section",
+            )
+            db.session.add(skill)
+
+        db.session.flush()
+
+        # Run analysis against ML Engineer job (job 0)
+        job = jobs[0]
+        candidate_skills = resume_data["skills"]
+        job_skills = [s.__dict__ for s in db.session.query(JobSkill).filter_by(job_id=job.id).all()]
+        job_skills_clean = [
+            {k: v for k, v in s.items() if not k.startswith("_")}
+            for s in job_skills
+        ]
+
+        result = engine.run(
+            resume_text=resume_data["raw_text"],
+            job_text=job.raw_text,
+            resume_data={
+                "education": resume_data["education"],
+                "experience": resume_data["experience"],
+                "projects": resume_data["projects"],
+                "total_experience_months": resume_data["total_experience_months"],
+            },
+            job_data={
+                "required_experience_years": job.required_experience_years,
+                "education_requirement": job.education_requirement,
+                "responsibilities": [],
+            },
+            candidate_skills=candidate_skills,
+            job_skills=job_skills_clean,
+        )
+
+        explanation = generate_explanation(
+            result,
+            resume_data={
+                "candidate_name": resume_data["candidate_name"],
+                "education": resume_data["education"],
+                "experience": resume_data["experience"],
+            },
+            job_data={"title": job.title},
+        )
+
+        skill_gaps_data = generate_skill_gaps(
+            skill_matches=result["skill_matches"],
+            job_skills=job_skills_clean,
+            resume_data={},
+        )
+
+        analysis = Analysis(
+            resume_id=resume.id,
+            job_id=job.id,
+            user_id=demo_recruiter.id,
+            status="done",
+            overall_score=result["overall_score"],
+            match_label=result["match_label"],
+            match_color=result["match_color"],
+            tfidf_score=result["tfidf_score"],
+            semantic_score=result["semantic_score"],
+            kg_score=result["kg_score"],
+            experience_score=result["experience_score"],
+            weight_tfidf=0.25,
+            weight_semantic=0.30,
+            weight_kg=0.25,
+            weight_experience=0.20,
+            total_requirements=result["total_requirements"],
+            fully_matched_count=result["fully_matched_count"],
+            partially_matched_count=result["partially_matched_count"],
+            transferable_count=result["transferable_count"],
+            missing_count=result["missing_count"],
+            strengths_json=json.dumps(explanation["strengths"]),
+            weaknesses_json=json.dumps(explanation["weaknesses"]),
+            summary=explanation["summary"],
+            experience_match_json=json.dumps(result["experience_match"]),
+            education_match_json=json.dumps(result["education_match"]),
+        )
+        db.session.add(analysis)
+        db.session.flush()
+
+        for sm in result["skill_matches"]:
+            skill_match = SkillMatch(
+                analysis_id=analysis.id,
+                job_skill=sm["job_skill"],
+                job_skill_priority=sm.get("job_skill_priority"),
+                match_status=sm["match_status"],
+                matched_candidate_skill=sm.get("matched_candidate_skill"),
+                transfer_path=sm.get("transfer_path"),
+                match_score=sm.get("match_score"),
+                evidence_json=json.dumps(sm.get("evidence", [])),
+            )
+            db.session.add(skill_match)
+
+        for sg in skill_gaps_data:
+            skill_gap = SkillGap(
+                analysis_id=analysis.id,
+                skill=sg["skill"],
+                gap_type=sg["gap_type"],
+                priority=sg["priority"],
+                reason=sg["reason"],
+                learning_direction=sg["learning_direction"],
+                estimated_learning_weeks=sg["estimated_learning_weeks"],
+                related_resources_json=json.dumps(sg.get("related_resources", [])),
+            )
+            db.session.add(skill_gap)
+
+    db.session.commit()
+    print("✓ Demo data seeded successfully.")
+    print(f"  Demo candidate: demo_candidate@resumeiq.demo / demo1234")
+    print(f"  Demo recruiter: demo_recruiter@resumeiq.demo / demo1234")
+    print(f"  {len(DEMO_RESUMES)} resumes, {len(DEMO_JOBS)} jobs seeded.")
 
 
 if __name__ == "__main__":
