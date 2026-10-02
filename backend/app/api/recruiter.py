@@ -154,7 +154,8 @@ def compare_candidates():
         for req in all_requirements:
             row = {"requirement": req}
             for analysis in analyses:
-                row[analysis.id] = skill_match_maps[analysis.id].get(req, "missing")
+                # Use string key so JSON serialization doesn't mix int/str keys
+                row[str(analysis.id)] = skill_match_maps[analysis.id].get(req, "missing")
             matrix.append(row)
 
         return jsonify({

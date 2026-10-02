@@ -126,7 +126,7 @@ export default function ComparisonPage() {
                         {row.requirement.replace(/_/g, ' ')}
                       </td>
                       {data.candidates.map(c => {
-                        const status = row[c.analysis_id]
+                        const status = row[String(c.analysis_id)]
                         const cfg = STATUS_SYMBOL[status] || { symbol: '?', cls: 'text-[var(--text-muted)]' }
                         return (
                           <td key={c.analysis_id} className={`px-5 py-3 text-center text-lg ${cfg.cls}`}>
